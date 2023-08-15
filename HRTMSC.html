@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Moto Strength Coach</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #0B171B;
+            color: #FFFFFF;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #000;
+            padding: 25px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 500%;
+            color: #FFFFFF;
+        }
+        .moto {
+            color: #1CEB09;
+        }
+        .explanation {
+            margin-top: 20mm;
+            margin-bottom: 10mm;
+            font-size: 20px;
+            text-align: left;
+            line-height: 1.6;
+        }
+        .circle {
+            width: 200px;
+            height: 200px;
+            border: 5px dashed #1CEB09;
+            border-radius: 50%;
+            position: relative;
+            margin: 20px auto;
+            animation: colorChange 3s linear infinite;
+        }
+        .circle.waiting {
+            animation: flashRed 1s linear infinite;
+        }
+        @keyframes colorChange {
+            0% {border-color: #1CEB09;}
+            50% {border-color: #FFFF00;}
+            100% {border-color: #FF0000;}
+        }
+        @keyframes flashRed {
+            0%, 100% { border-color: #FF0000; }
+            50% { border-color: #FF0000; }
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            border: none;
+        }
+        #startButton {
+            background-color: #1CEB09;
+        }
+        #reactButton {
+            background-color: #1CEB09;
+            border: 3px solid #000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #000;
+        }
+        #retry {
+            background-color: #F51720;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        canvas {
+            margin-top: 20px;
+        }
+        #userForm {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="userForm">
+        <input type="text" id="username" placeholder="Enter Username">
+        <button onclick="setUser()">Start</button>
+    </div>
+
+    <div id="gameInterface" style="display:none;">
+        <header>
+            <h1><span class="moto">MotoStrengthCoach</span> Holeshot Trainer</h1>
+        </header>
+        <p class="explanation">
+        <h1> Press Start, and aim to hit the green button as soon as it appears within the circle. Your score is recorded after each attempt and averaged every 3 turns. An above-average score is 250m/s. With consistent training, most individuals reach a cap of around 200m/s. Keep pushing to improve and achieve that holeshot...
+        </p>
+        <div class="circle">
+            <button id="reactButton" onclick="recordReactionTime()" style="display:none;">GO!!!</button>
+        </div>
+        <button id="startButton" onclick="startGame()">Start Reaction Timer</button>
+        <p>Average Score: <span id="average">0</span> ms</p>
+        <button id="retry" style="display:none;" onclick="retry()">Continue Training</button>
+        <canvas id="reactionChart"></canvas>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let startTime;
+        let times = [];
+        let currentTrial = 0;
+        const maxTrials = 3;
+        let reactionChart;
+        
+        function setUser() {
+            const username = document.getElementById('username').value;
+            if (username) {
+                currentUser = username;
+
+                // Check if the user has previous data
+                const savedData = localStorage.getItem(username);
+                if (savedData) {
+                    times = JSON.parse(savedData);
+                } else {
+                    times = [];
+                }
+
+                // Hide the login form and show the game interface
+                document.getElementById('userForm').style.display = 'none';
+                document.getElementById('gameInterface').style.display = 'block';
+            }
+        }
+
+        function saveUserData() {
+            if (currentUser) {
+                localStorage.setItem(currentUser, JSON.stringify(times));
+            }
+        }
+
+        function startGame() {
+            document.getElementById('startButton').style.display = 'none';
+            document.getElementById('retry').style.display = 'none';
+            currentTrial = 0;
+            times = [];
+
+            initChart();
+            startTrial();
+        }
+
+        function startTrial() {
+            const circle = document.querySelector('.circle');
+            circle.style.animation = 'colorChange 3s linear infinite';
+            
+            setTimeout(() => {
+                circle.style.animation = '';
+                startTime = Date.now();
+                positionReactButton();
+                document.getElementById('reactButton').style.display = 'flex';
+            }, Math.random() * 7000 + 3000);
+        }
+
+        function recordReactionTime() {
+            const reactionTime = Date.now() - startTime;
+            times.push(reactionTime);
+            
+            document.getElementById('reactButton').style.display = 'none';
+            currentTrial++;
+
+            reactionChart.data.labels.push(currentTrial);
+            reactionChart.data.datasets[0].data.push(reactionTime);
+
+            if (currentTrial % maxTrials === 0) {
+                const sum = times.slice(-maxTrials).reduce((acc, curr) => acc + curr, 0);
+                const average = sum / maxTrials;
+                reactionChart.data.datasets[1].data.push(average);
+            }
+
+            reactionChart.update();
+
+            if (currentTrial >= maxTrials) {
+                displayResults();
+            } else {
+                startTrial();
+            }
+        }
+
+        function displayResults() {
+            const sum = times.reduce((acc, curr) => acc + curr, 0);
+            const average = sum / times.length;
+            document.getElementById('average').innerText = average.toFixed(2);
+            
+            document.querySelector('.circle').classList.add('waiting');
+            document.getElementById('retry').style.display = 'block';
+            
+            // Save the user's data
+            saveUserData();
+        }
+
+        function positionReactButton() {
+            const reactButton = document.getElementById('reactButton');
+            const circle = document.querySelector('.circle');
+            const maxX = circle.clientWidth - reactButton.clientWidth;
+            const maxY = circle.clientHeight - reactButton.clientHeight;
+            
+            const randomX = Math.random() * maxX;
+            const randomY = Math.random() * maxY;
+            
+            reactButton.style.left = randomX + 'px';
+            reactButton.style.top = randomY + 'px';
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('reactionChart').getContext('2d');
+            reactionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Reaction Time (ms)',
+                        data: [],
+                        borderColor: '#1CEB09',
+                        fill: false
+                    }, {
+                        label: 'Average (ms)',
+                        data: [],
+                        borderColor: '#F51720',
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {beginAtZero: true},
+                        y: {beginAtZero: true}
+                    }
+                }
+            });
+        }
+
+        function retry() {
+    // Hide the "Continue Training" button
+    document.getElementById('retry').style.display = 'none';
+    
+    // Remove the waiting class from the circle
+    document.querySelector('.circle').classList.remove('waiting');
+    
+    // Reset the current trial counter back to zero
+    currentTrial = 0;
+    
+    // Call startTrial to restart the loop
+    startTrial();
+}
+
+        
+    </script>
+</body>
+</html>
